@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "/usr/bin/env ruby --disable-gems \"${CLAUDE_PLUGIN_ROOT}/ruby/hooks/kontext.rb\" SessionStart" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/usr/bin/env ruby --disable-gems \"${CLAUDE_PLUGIN_ROOT}/ruby/hooks/kontext.rb\" UserPromptSubmit" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "/usr/bin/env ruby --disable-gems \"${CLAUDE_PLUGIN_ROOT}/ruby/hooks/agent_start.rb\"" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/usr/bin/env ruby --disable-gems \"${CLAUDE_PLUGIN_ROOT}/ruby/hooks/stop_check.rb\"" }
+        ]
+      }
+    ]
+  }
+}
