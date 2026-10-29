@@ -1,6 +1,6 @@
 # goal
 
-Task-System für Claude Code.
+Task-System für Claude Code. GOAL steht für **G**oal **O**riented **A**I **L**ane: Claude bleibt in der Spur des aktiven Tasks.
 
 ## Ziel
 
