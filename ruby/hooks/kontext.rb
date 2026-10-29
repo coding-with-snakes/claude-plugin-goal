@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# Hook für SessionStart und UserPromptSubmit: pflegt .focus/state.yml und gibt Claude das aktive Ziel mit.
+# Hook für SessionStart und UserPromptSubmit (Claude Code) bzw. die Copilot-Entsprechungen: pflegt .focus/state.yml und gibt Claude das aktive Ziel mit.
 # Bei UserPromptSubmit erledigt der Hook selbst, was der Dev in festen Worten sagt („Task erledigt“,
 # „UI abgeschlossen, Freigabe-Regel aktivieren“, „ja“ auf einen Zielvorschlag), damit Claude die
 # Datei nicht sichtbar editieren muss.
@@ -10,7 +10,15 @@ MAX_BESCHREIBUNG = 300
 MAX_PROMPT = 500
 REGELN = File.expand_path("../../regeln.md", __dir__)
 
-event = ARGV[0] || "UserPromptSubmit"
+# Claude Code ruft mit SessionStart/UserPromptSubmit auf, GitHub Copilot CLI mit sessionStart,
+# userPromptSubmitted, userPromptTransformed und postToolUse (die letzten beiden nur Kontext). Copilot
+# wertet bei userPromptSubmitted die Ausgabe nicht aus; der Hook pflegt dort nur state.yml, den Kontext
+# stellt userPromptTransformed dem Prompt voran.
+COPILOT_EVENTS = { "sessionStart" => "SessionStart", "userPromptSubmitted" => "UserPromptSubmit",
+                   "userPromptTransformed" => "PostToolUse", "postToolUse" => "PostToolUse" }.freeze
+
+aufruf = ARGV[0] || "UserPromptSubmit"
+event = COPILOT_EVENTS.fetch(aufruf, aufruf)
 eingabe = FokusState.eingabe
 start = eingabe["cwd"] || ENV["CLAUDE_PROJECT_DIR"] || Dir.pwd
 prompt = eingabe["prompt"].to_s
@@ -88,4 +96,13 @@ else
 end
 zeilen.concat(meldungen)
 
-puts JSON.generate("hookSpecificOutput" => { "hookEventName" => event, "additionalContext" => zeilen.join("\n") })
+kontext = zeilen.join("\n")
+ausgabe =
+  if aufruf == "userPromptTransformed"
+    { "modifiedTransformedPrompt" => "#{kontext}\n\n#{eingabe['transformedPrompt']}" }
+  elsif COPILOT_EVENTS.key?(aufruf)
+    { "additionalContext" => kontext }
+  else
+    { "hookSpecificOutput" => { "hookEventName" => event, "additionalContext" => kontext } }
+  end
+puts JSON.generate(ausgabe)

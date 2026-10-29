@@ -6,20 +6,24 @@ Task-System für Claude Code. GOAL steht für **G**oal **O**riented **A**I **L**
 
 Der Dev arbeitet immer an genau einem Task. Der Task-Baum liegt in `.focus/state.yml`, die Statuszeile zeigt jederzeit, woran man gerade arbeitet. goal ändert nichts an Claudes Antwortstil und schränkt keine Werkzeuge ein; dafür gibt es das separate Plugin [`mind_the_trap`](../mind_the_trap).
 
-## Installation (macOS)
+## Installation (macOS, Linux, Windows)
 
-Pfade unten gehen von `~/dev/claude-plugins/goal` aus – anpassen, falls das Repo woanders liegt.
+Voraussetzung: Ruby ab 2.6 und git im PATH (macOS bringt Ruby mit, unter Windows z.B. RubyInstaller).
 
-1. Plugin installieren (bringt die Hooks mit):
+1. Plugin von GitHub installieren (bringt die Hooks mit):
    ```sh
-   claude plugin marketplace add ~/dev/claude-plugins/goal
-   claude plugin install goal@goal
+   claude plugin install goal --marketplace coding-with-snakes/claude-plugin-goal
    ```
-2. In `~/.claude/settings.json` auf oberster Ebene eintragen (`<user>` ersetzen):
+   Das geht ab Claude Code v2.1.292. Bei älteren Versionen: `claude plugin marketplace add coding-with-snakes/claude-plugin-goal`, dann `claude plugin install goal@goal`.
+2. **Manueller Schritt:** Die Statuszeile kann das Plugin nicht selbst setzen. Dafür muss das Repo lokal liegen. Klone es in einen Ordner deiner Wahl (`<ordner>`):
+   ```sh
+   git clone https://github.com/coding-with-snakes/claude-plugin-goal.git goal
+   ```
+   Trage dann in `settings.json` auf oberster Ebene ein (macOS und Linux: `~/.claude/settings.json`, Windows: `%USERPROFILE%\.claude\settings.json`). `<ordner>` ist der absolute Pfad zum Ordner, in dem `goal` liegt, mit `/` als Trenner, auch unter Windows (z.B. `C:/Users/anna/dev`):
    ```json
    "statusLine": {
      "type": "command",
-     "command": "ruby --disable-gems /Users/<user>/dev/claude-plugins/goal/ruby/statusline.rb",
+     "command": "ruby --disable-gems <ordner>/goal/ruby/statusline.rb",
      "refreshInterval": 5
    },
    ```
@@ -48,6 +52,30 @@ Dev:    Lass im Hintergrund die ganze Testsuite laufen.
 Statuszeile während des Laufs: `… ◌ (d) Testsuite`, wenn fertig: `… ● (d) Testsuite` (grün). `d aktiv` zeigt das Ergebnis.
 
 Die Regeln, die Claude dazu bekommt, stehen in [`regeln.md`](regeln.md).
+
+## GitHub Copilot CLI
+
+`kontext.rb` versteht auch die Copilot-Events.
+
+1. Repo klonen (Ruby muss im PATH liegen), wie in Installation Schritt 2: `git clone https://github.com/coding-with-snakes/claude-plugin-goal.git goal`
+2. `goal.json` anlegen in `~/.copilot/hooks/` (Windows: `%USERPROFILE%\.copilot\hooks\`) und `<ordner>` wie oben ersetzen:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [{ "type": "command", "command": "ruby --disable-gems <ordner>/goal/ruby/hooks/kontext.rb sessionStart" }],
+    "userPromptSubmitted": [{ "type": "command", "command": "ruby --disable-gems <ordner>/goal/ruby/hooks/kontext.rb userPromptSubmitted" }],
+    "userPromptTransformed": [{ "type": "command", "command": "ruby --disable-gems <ordner>/goal/ruby/hooks/kontext.rb userPromptTransformed" }]
+  }
+}
+```
+
+3. Neue Copilot-Session starten.
+
+Eingaben wie `task: …` und `b done` ändern `.focus/state.yml` wie bei Claude Code. Das aktive Ziel kommt bei `sessionStart` in den Kontext und danach über `userPromptTransformed`, das es jedem Modell-Input voranstellt; Copilot verwirft die Ausgabe von `userPromptSubmitted` ([Hooks-Referenz](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference)). Ob `userPromptTransformed` für Config-Hooks wirkt, ist ungeprüft; wirkt es nicht, ersetze es durch `postToolUse` (Kontext nach jedem Tool-Aufruf).
+
+Nicht übernommen: Zielvorschlag mit `ja` (Copilots `agentStop` liefert Claudes letzte Antwort nicht), Hintergrund-Tasks (Claudes Agent-Tool) und die Statuszeile (in der offiziellen Doku nicht beschrieben). Nicht mit Copilot getestet, nur mit simulierten Eingaben.
 
 ## Tests
 
