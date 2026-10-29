@@ -1,0 +1,7 @@
+{
+  "name": "goal",
+  "displayName": "Goal",
+  "version": "0.1.0",
+  "description": "Task-System: ein aktiver Task, Task-Baum mit Buchstaben, Pfad in der Statuszeile, Hintergrund-Tasks",
+  "author": { "name": "nsc" }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "goal",
+  "description": "Task-System für Claude Code",
+  "owner": { "name": "nsc" },
+  "plugins": [
+    {
+      "name": "goal",
+      "source": "./",
+      "description": "Task-System: ein aktiver Task, Task-Baum mit Buchstaben, Pfad in der Statuszeile, Hintergrund-Tasks"
+    }
+  ]
+}
