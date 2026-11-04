@@ -75,32 +75,28 @@ end.join("  ")
 platz = breite - sichtbar(rechts).length - (rechts.empty? ? 0 : 2)
 
 labels = pfad.map { |t| beschriftung(t) }
-aktuell = labels.pop
-eltern = labels
-geschwister = FokusState.geschwister(pfad).map { |t| beschriftung(t) }
+# Offene Geschwister jeder Ebene, grau hinter dem Label; inaktive Tasks in eckigen Klammern, damit sie nicht mit „(a)“ verwechselt werden.
+geschwister = pfad.each_index.map { |i| FokusState.geschwister(pfad, i).map { |t| beschriftung(t) } }
+zusatz = geschwister.map { |g| g.empty? ? "" : " [+ #{g.join(', ')}]" }
 kinder = FokusState.offene_kinder(pfad.last).map { |t| beschriftung(t) }
+unter = kinder.empty? ? "" : "#{TRENNER}[#{kinder.join(', ')}]"
+gesamt = -> { labels.sum(&:length) + zusatz.sum(&:length) + TRENNER.length * (labels.size - 1) + unter.length }
 
 # Bei Platzmangel zuerst Geschwister, dann offene Subtasks auf eine Zahl kürzen, dann die übergeordneten Tasks.
-pfad_laenge = eltern.sum(&:length) + TRENNER.length * eltern.size + aktuell.length
-# Inaktive Tasks in eckigen Klammern, damit sie nicht mit den Buchstaben „(a)“ verwechselt werden.
-unter = kinder.empty? ? "" : "#{TRENNER}[#{kinder.join(', ')}]"
-zusatz = geschwister.empty? ? "" : " [+ #{geschwister.join(', ')}]"
-zusatz = " [+#{geschwister.size}]" if pfad_laenge + unter.length + zusatz.length > platz
-unter = "#{TRENNER}[+#{kinder.size}]" if !kinder.empty? && pfad_laenge + unter.length + zusatz.length > platz
-zusatz = unter + zusatz
-if !eltern.empty? && pfad_laenge + zusatz.length > platz
-  rest = platz - aktuell.length - zusatz.length - TRENNER.length * eltern.size
-  eltern = eltern.map { |l| kuerzen(l, [rest / eltern.size, MIN_BREITE].max) }
+zusatz = geschwister.map { |g| g.empty? ? "" : " [+#{g.size}]" } if gesamt.() > platz
+unter = "#{TRENNER}[+#{kinder.size}]" if !kinder.empty? && gesamt.() > platz
+if labels.size > 1 && gesamt.() > platz
+  eltern = labels[0...-1]
+  frei = platz - gesamt.() + eltern.sum(&:length)
+  labels = eltern.map { |l| kuerzen(l, [frei / eltern.size, MIN_BREITE].max) } << labels.last
 end
 # Reicht es immer noch nicht, wird auch der aktive Task gekürzt, damit rechts alles sichtbar bleibt.
-ueber = eltern.sum(&:length) + TRENNER.length * eltern.size + aktuell.length + zusatz.length - platz
-aktuell = kuerzen(aktuell, [aktuell.length - ueber, MIN_BREITE].max) if ueber.positive?
+ueber = gesamt.() - platz
+labels[-1] = kuerzen(labels.last, [labels.last.length - ueber, MIN_BREITE].max) if ueber.positive?
 
 farbe = pfad.length >= WARN_TIEFE ? GELB : CYAN
-teile = eltern.map { |l| "#{farbe}#{l}#{RESET}" }
-teile << "#{FETT}#{farbe}#{aktuell}#{RESET}"
-links = teile.join("#{GRAU}#{TRENNER}#{RESET}")
-links += "#{GRAU}#{zusatz}#{RESET}" unless zusatz.empty?
+teile = labels.each_index.map { |i| "#{FETT if i == labels.size - 1}#{farbe}#{labels[i]}#{RESET}#{GRAU}#{zusatz[i]}#{RESET}" }
+links = teile.join("#{GRAU}#{TRENNER}#{RESET}") + "#{GRAU}#{unter}#{RESET}"
 
 if rechts.empty?
   puts links

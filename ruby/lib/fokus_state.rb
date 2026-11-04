@@ -27,7 +27,7 @@ module FokusState
     home = ENV["HOME"]
     dir = File.expand_path(start)
     loop do
-      kandidat = File.join(dir, ".focus")
+      kandidat = File.join(dir, ".claude", ".focus")
       if vorhanden?(kandidat)
         return eigener_ordner?(kandidat) && !eingecheckt?(dir) ? kandidat : nil
       end
@@ -106,11 +106,11 @@ module FokusState
     pfad if pfad && pfad.last["status"] == "open"
   end
 
-  # Offene Geschwister des aktiven Tasks (ohne ihn selbst und ohne Hintergrund-Tasks).
-  def geschwister(pfad)
-    return [] if pfad.nil? || pfad.size < 2
+  # Offene Geschwister von pfad[tiefe] (ohne ihn selbst und ohne Hintergrund-Tasks).
+  def geschwister(pfad, tiefe)
+    return [] if tiefe < 1
 
-    Array(pfad[-2]["subtasks"]).select { |t| t.is_a?(Hash) && t["status"] == "open" && !t.equal?(pfad.last) }
+    Array(pfad[tiefe - 1]["subtasks"]).select { |t| t.is_a?(Hash) && t["status"] == "open" && !t.equal?(pfad[tiefe]) }
   end
 
   # Offene direkte Subtasks eines Tasks.
@@ -153,9 +153,10 @@ module FokusState
     vorhanden = focus_dir(start)
     return vorhanden if vorhanden
 
-    dir = File.join(ENV["CLAUDE_PROJECT_DIR"] || start, ".focus")
+    dir = File.join(ENV["CLAUDE_PROJECT_DIR"] || start, ".claude", ".focus")
     return nil if vorhanden?(dir)
 
+    Dir.mkdir(File.dirname(dir)) unless vorhanden?(File.dirname(dir))
     Dir.mkdir(dir, 0o700)
     ignorieren(dir)
     dir
