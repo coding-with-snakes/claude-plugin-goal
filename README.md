@@ -38,6 +38,8 @@ Tasks steuerst du in normaler Sprache. Ein Hook trägt alles in `.focus/state.ym
 | `task: Login-Bug fixen, leeres Passwort gibt 500` | neuer Task neben dem aktiven, aktiv; nach dem Komma die Beschreibung |
 | `subtask: Ursache finden` | neuer Task unter dem aktiven, aktiv |
 | `Task erledigt` | schliesst den aktiven Task |
+| `/task-baum` | zeigt alle offenen Tasks als Baum in einem Pane neben dem Chat; Esc schliesst es, der Verlauf bleibt leer (Mod, ab Claude Code v2.1.287) |
+| `task-baum`, `task baum` oder `tasks` | zeigt den Baum als Meldung im Verlauf, ohne dass Claude antwortet (Hook, auch ohne Mod) |
 | `b done und c aktiv` | schliesst Task (b), aktiviert Task (c) |
 | erster Prompt ohne Ziel | Claude schlägt vor: `Ziel: Login-Bug fixen. Passt?` – `ja` legt den Task an |
 

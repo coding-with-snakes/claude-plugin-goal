@@ -10,6 +10,7 @@ MIN_BREITE = 4
 # Claude Code zeigt die Statuszeile mit Einzug; der Rand verhindert, dass rechts etwas abgeschnitten wird.
 RAND = 8
 LABEL_MAX = 20
+ERST_MIN = 8
 
 FETT = "\e[1m"
 GRAU = "\e[38;5;248m"
@@ -42,6 +43,12 @@ def beschriftung(task)
   label = FokusState.text(task["label"], 200)
   label = yield(label) if block_given?
   task["kuerzel"] ? "(#{task['kuerzel']}) #{label}" : label
+end
+
+# Bei Platzmangel bleibt der erste Eintrag sichtbar, die übrigen werden zur Zahl.
+def kompakt(liste, breite)
+  erster = kuerzen(liste.first, breite)
+  liste.size == 1 ? erster : "#{erster}, +#{liste.size - 1}"
 end
 
 def sichtbar(text)
@@ -82,9 +89,16 @@ kinder = FokusState.offene_kinder(pfad.last).map { |t| beschriftung(t) }
 unter = kinder.empty? ? "" : "#{TRENNER}[#{kinder.join(', ')}]"
 gesamt = -> { labels.sum(&:length) + zusatz.sum(&:length) + TRENNER.length * (labels.size - 1) + unter.length }
 
-# Bei Platzmangel zuerst Geschwister, dann offene Subtasks auf eine Zahl kürzen, dann die übergeordneten Tasks.
-zusatz = geschwister.map { |g| g.empty? ? "" : " [+#{g.size}]" } if gesamt.() > platz
-unter = "#{TRENNER}[+#{kinder.size}]" if !kinder.empty? && gesamt.() > platz
+# Bei Platzmangel zuerst Geschwister und offene Subtasks auf den ersten Eintrag plus Zahl kürzen, dann dessen Label,
+# dann die übergeordneten Tasks.
+klammern = lambda do |breite|
+  zusatz = geschwister.map { |g| g.empty? ? "" : " [+ #{kompakt(g, breite)}]" }
+  unter = kinder.empty? ? "" : "#{TRENNER}[#{kompakt(kinder, breite)}]"
+end
+if gesamt.() > platz
+  klammern.(LABEL_MAX)
+  klammern.([LABEL_MAX - gesamt.() + platz, ERST_MIN].max) if gesamt.() > platz
+end
 if labels.size > 1 && gesamt.() > platz
   eltern = labels[0...-1]
   frei = platz - gesamt.() + eltern.sum(&:length)
@@ -93,6 +107,7 @@ end
 # Reicht es immer noch nicht, wird auch der aktive Task gekürzt, damit rechts alles sichtbar bleibt.
 ueber = gesamt.() - platz
 labels[-1] = kuerzen(labels.last, [labels.last.length - ueber, MIN_BREITE].max) if ueber.positive?
+klammern.(MIN_BREITE - 1) if gesamt.() > platz
 
 farbe = pfad.length >= WARN_TIEFE ? GELB : CYAN
 teile = labels.each_index.map { |i| "#{FETT if i == labels.size - 1}#{farbe}#{labels[i]}#{RESET}#{GRAU}#{zusatz[i]}#{RESET}" }

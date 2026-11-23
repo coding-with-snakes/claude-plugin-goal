@@ -177,6 +177,25 @@ module FokusState
     false
   end
 
+  # Der Dev fordert den Task-Baum an.
+  BAUM = /\A(?:task[- ]baum|tasks)[.!]?\z/i
+
+  # Zeichnet den Task-Baum ohne erledigte Tasks; ▶ markiert den aktiven, ◌ läuft im Hintergrund, ● ist bereit.
+  def baum(state)
+    zeile = lambda do |t|
+      marke = { "laeuft" => "◌ ", "bereit" => "● " }[t["status"]] || (t["id"] == state["aktiv"] ? "▶ " : "")
+      "#{marke}#{"(#{t['kuerzel']}) " if t['kuerzel']}#{text(t['label'], 80)}"
+    end
+    ast = lambda do |task, praefix|
+      kinder = Array(task["subtasks"]).select { |t| t.is_a?(Hash) && t["status"] != "done" }
+      kinder.each_with_index.flat_map do |t, i|
+        letzter = i == kinder.size - 1
+        ["#{praefix}#{letzter ? '└─ ' : '├─ '}#{zeile.(t)}"] + ast.(t, praefix + (letzter ? "   " : "│  "))
+      end
+    end
+    [zeile.(state["task"]), *ast.(state["task"], "")].join("\n")
+  end
+
   def finden(task, id)
     alle_tasks(task).find { |t| t["id"] == id }
   end
@@ -196,7 +215,9 @@ module FokusState
 
   # Der Dev schliesst oder aktiviert einen Task beim Namen: „UI abgeschlossen“, „Freigabe-Regel aktivieren“.
   # Mehrere Anweisungen in einer Zeile sind mit Komma, „und“ oder Semikolon getrennt.
-  NAME_SCHLIESSEN = /\A(?<name>.+?)\s+(?:ist\s+)?(?:erledigt|done|fertig|abgeschlossen)[.!]?\z/i
+  NAME_SCHLIESSEN = /\A(?:(?<name>.+?)\s+(?:ist\s+)?(?:erledigt|done|fertig|abgeschlossen)|(?:erledigt|done|fertig|abgeschlossen)\s+(?<name2>.+?))[.!]?\z/i
+  # Ein „task:“ mitten im Prompt, z.B. „c done, neuer task: Label, Beschreibung“; pre_match sind die Anweisungen.
+  NEUER_TASK_AB = /(?:[,;\s]|\bund\b)*(?=(?:neue[rn]?\s+)?(?:sub)?task\s*:)/i
   NAME_AKTIVIEREN = /\A(?:(?<name>.+?)\s+aktiv(?:ieren)?|aktiviere\s+(?<name2>.+?))[.!]?\z/i
   KUERZEL = ("a".."z").to_a.freeze
   FUELLWOERTER = %w[todo task subtask den die das der the].freeze
@@ -265,8 +286,9 @@ module FokusState
 
   # Zerlegt eine kurze Anweisung in Aktionen [[:schliessen, task], [:aktivieren, task]].
   # Nur wenn jeder Teil eindeutig erkannt wird; sonst nil, damit normale Sätze nichts auslösen.
+  # Ein Zustimmungswort am Anfang („ok, c done“) wird ignoriert.
   def anweisungen(state, prompt)
-    text = prompt.to_s.strip
+    text = prompt.to_s.sub(ZUSAGE, "").strip
     return nil if text.empty? || text.length > MAX_ANWEISUNG || text.include?("\n")
 
     aktionen = text.split(/\s*(?:,|;|\bund\b)\s*/i).reject(&:empty?).map do |teil|
@@ -274,7 +296,7 @@ module FokusState
         pfad = aktiver_pfad(state)
         pfad && [:schliessen, pfad.last]
       elsif (m = teil.match(NAME_SCHLIESSEN))
-        (t = task_nach_name(state, m[:name])) && [:schliessen, t]
+        (t = task_nach_name(state, m[:name] || m[:name2])) && [:schliessen, t]
       elsif (m = teil.match(NAME_AKTIVIEREN))
         (t = task_nach_name(state, m[:name] || m[:name2])) && [:aktivieren, t]
       end
@@ -282,12 +304,16 @@ module FokusState
     aktionen.empty? || aktionen.include?(nil) ? nil : aktionen
   end
 
-  # Schliesst einen beliebigen Task. Liegt der aktive Task in ihm, wird sein übergeordneter aktiv.
+  # Schliesst einen beliebigen Task. Liegt der aktive Task in ihm, wird sein erstes offenes Geschwister
+  # aktiv, sonst sein übergeordneter Task.
   def task_schliessen(state, task)
     task["status"] = "done"
     pfad = pfad_zu(state["task"], state["aktiv"]) || []
     index = pfad.index { |t| t.equal?(task) }
-    state["aktiv"] = index.positive? ? pfad[index - 1]["id"] : nil if index
+    return unless index
+
+    neu = geschwister(pfad, index).first || (pfad[index - 1] if index.positive?)
+    state["aktiv"] = neu && neu["id"]
   end
 
   # Aktiviert einen Task; erledigte oder fertige Hintergrund-Tasks werden wieder offen.

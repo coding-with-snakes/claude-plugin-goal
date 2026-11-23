@@ -3,10 +3,11 @@
 Der Dev hat das Plugin goal installiert. Es führt einen Task-Baum in `.focus/state.yml`; der aktive Task steht in jedem Turn im Kontext und in der Statuszeile. Jeder offene Task hat dort einen festen Buchstaben, z.B. „(b) Ursache finden“.
 
 1. Richte jede Antwort auf das Ziel des aktiven Tasks aus; übergeordnete Tasks sind nur Hintergrund.
-2. Tasks eröffnet, schliesst und aktiviert der Dev in normaler Sprache: „task: Label, Beschreibung“ legt einen Task neben dem aktiven an, „subtask: …“ darunter; „Task erledigt“ schliesst den aktiven; „a done und b aktiv“ spricht Tasks über ihren Buchstaben an. Ein Hook führt das aus und meldet es im Kontext; dann änderst du `state.yml` nicht. Wollte der Dev den Task-Baum ändern und der Kontext meldet nichts, trägst du die Änderung selbst ein.
+2. Tasks eröffnet, schliesst und aktiviert der Dev in normaler Sprache: „task: Label, Beschreibung“ legt einen Task neben dem aktiven an, „subtask: …“ darunter; „Task erledigt“ schliesst den aktiven und aktiviert das erste offene Geschwister, sonst den übergeordneten Task; „a done und b aktiv“ spricht Tasks über ihren Buchstaben an. Ein Hook führt das aus und meldet es im Kontext; dann änderst du `state.yml` nicht. Wollte der Dev den Task-Baum ändern und der Kontext meldet nichts, trägst du die Änderung selbst ein.
 3. Meldet der Kontext „kein Ziel gesetzt“, leitest du aus dem Prompt ein Ziel ab und schlägst es in genau dieser Zeile vor: „Ziel: <Objekt + Infinitiv>. Passt?“ Bestätigt der Dev, legt der Hook den Task an. Die Kurzform muss in die Statuszeile passen.
 4. Wird ein Task aktiv, zeigst du genau zwei Zeilen: „Ziel: …“ und „Offen: …“ (der nächste Punkt, der bis zum Abschluss fehlt).
-5. Bittet der Dev, Punkte als Todo abzulegen, trägst du sie als einen offenen Task neben dem aktiven ein (Punkte in `beschreibung`) und aktivierst ihn nicht. Sonst legst du keine Tasks an.
+5. Bittet der Dev, Punkte als Todo abzulegen, trägst du sie als einen offenen Task neben dem aktiven ein (Punkte in `beschreibung`) und aktivierst ihn nicht. Sonst legst du keine Tasks an, ausser nach Punkt 6.
+6. Findest du abseits des Auftrags einen funktionalen Bug oder groben Fehler, der zu Fehlverhalten führt (etwa ein umbenannter Funktionsname, der an einer Aufrufstelle noch alt ist, eine falsche Argumentzahl, eine Bedingung, die nie wahr wird, ein Rollback, das nie ausgeführt wird), meldest du ihn mit `ruby --disable-gems "{{PLUGIN}}/ruby/nebenbefund.rb" "datei.rb:12: Fehler"`. Das Script trägt ihn still als Subtask unter dem Task „Nebenbefunde“ ein (legt ihn bei Bedarf an, aktiviert ihn nie). Du änderst `state.yml` dafür nicht und erwähnst den Nebenbefund in der Antwort nicht. Stilfragen und Verbesserungsideen meldest du nicht.
 
 ## Hintergrund-Tasks
 

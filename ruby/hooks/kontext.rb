@@ -23,7 +23,9 @@ eingabe = FokusState.eingabe
 start = eingabe["cwd"] || ENV["CLAUDE_PROJECT_DIR"] || Dir.pwd
 prompt = eingabe["prompt"].to_s
 
-focus = event == "UserPromptSubmit" ? FokusState.focus_dir_anlegen(start) : FokusState.focus_dir(start)
+# In einem Unterordner mit eigenem .git (z.B. ein Plugin-Repo) endet die Suche dort; dann gilt der Projektordner.
+focus = [start, ENV["CLAUDE_PROJECT_DIR"]].compact.map { |s| FokusState.focus_dir(s) }.compact.first
+focus ||= FokusState.focus_dir_anlegen(start) if event == "UserPromptSubmit"
 FokusState.ignorieren(focus) if focus
 state = focus && FokusState.laden(focus)
 meldungen = []
@@ -42,6 +44,12 @@ if focus && state != FokusState::UNLESBAR
       meldungen << "Fokus: Der Hook hat „#{label}“ angelegt und aktiv gesetzt. Ändere state.yml dafür nicht selbst."
     end
 
+    # Anweisungen („ok, c done“), optional gefolgt von „neuer task: Label, Beschreibung“.
+    ab = prompt.match(FokusState::NEUER_TASK_AB)
+    kopf = ab ? ab.pre_match : prompt
+    neu = ab && ab.post_match.match(FokusState::NEUER_TASK)
+    aktionen = kopf.strip.empty? ? [] : (FokusState.anweisungen(state, kopf) if state.is_a?(Hash))
+
     if vorschlag.is_a?(Hash) && prompt.match?(FokusState::ZUSAGE)
       label = FokusState.text(vorschlag["label"], MAX_LABEL)
       zusatz = FokusState.text(prompt.sub(FokusState::ZUSAGE, ""), MAX_BESCHREIBUNG)
@@ -51,13 +59,7 @@ if focus && state != FokusState::UNLESBAR
         FokusState.sicher_schreiben(archiv, state.to_yaml, nur_neu: true)
       end
       neuer_task.call(label, beschreibung, false)
-    elsif (neu = prompt.match(FokusState::NEUER_TASK))
-      # Label bis zum ersten Komma oder Zeilenumbruch, der Rest ist die Beschreibung.
-      label_teil, rest = neu[:text].strip.split(/\s*[,\n]\s*/, 2)
-      label = FokusState.text(label_teil, MAX_LABEL)
-      beschreibung = FokusState.text(rest.to_s.gsub(/\s+/, " "), MAX_BESCHREIBUNG)
-      neuer_task.call(label, beschreibung, neu[:sub].nil?)
-    elsif state.is_a?(Hash) && (aktionen = FokusState.anweisungen(state, prompt))
+    elsif aktionen && (aktionen.any? || neu)
       aktionen.each do |art, task|
         label = FokusState.text(task["label"], MAX_LABEL)
         if art == :schliessen
@@ -68,8 +70,15 @@ if focus && state != FokusState::UNLESBAR
           meldungen << "Fokus: Der Hook hat „#{label}“ aktiviert."
         end
       end
+      meldungen << "Ändere state.yml dafür nicht selbst." if aktionen.any?
+      if neu
+        # Label bis zum ersten Komma oder Zeilenumbruch, der Rest ist die Beschreibung.
+        label_teil, rest = neu[:text].strip.split(/\s*[,\n]\s*/, 2)
+        label = FokusState.text(label_teil, MAX_LABEL)
+        beschreibung = FokusState.text(rest.to_s.gsub(/\s+/, " "), MAX_BESCHREIBUNG)
+        neuer_task.call(label, beschreibung, neu[:sub].nil?)
+      end
       geaendert = true
-      meldungen << "Ändere state.yml dafür nicht selbst."
     end
 
     FokusState.sicher_schreiben(File.join(focus, "letzter_prompt.txt"), FokusState.text(prompt, MAX_PROMPT))
@@ -79,10 +88,16 @@ if focus && state != FokusState::UNLESBAR
   FokusState.speichern(focus, state) if geaendert
 end
 
+# „task-baum“ zeigt der Hook selbst an; der Prompt geht nicht an Claude.
+if aufruf == "UserPromptSubmit" && state.is_a?(Hash) && prompt.strip.match?(FokusState::BAUM)
+  puts JSON.generate("decision" => "block", "reason" => FokusState.baum(state))
+  exit
+end
+
 pfad = FokusState.aktiver_pfad(state)
 zeilen = []
 # Die Regeln des Task-Systems kommen bei Sessionstart und nach Compaction in den Kontext.
-zeilen << File.read(REGELN) if event == "SessionStart" && File.file?(REGELN)
+zeilen << File.read(REGELN).gsub("{{PLUGIN}}", File.expand_path("../..", __dir__)) if event == "SessionStart" && File.file?(REGELN)
 if state == FokusState::UNLESBAR
   zeilen << "Fokus: #{File.join(focus, 'state.yml')} ist unlesbar. Überschreib sie nicht; der Dev repariert sie."
 elsif pfad
